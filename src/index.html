@@ -1,0 +1,1108 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FloatTodo</title>
+<style>
+:root{
+  color-scheme:light dark;
+  --ink:rgba(24,24,27,.92);
+  --soft:rgba(24,24,27,.56);
+  --done:rgba(24,24,27,.42);
+  --line:rgba(24,24,27,.12);
+  --wash:rgba(24,24,27,.055);
+  --tint:rgba(255,255,255,var(--ta,.24));
+  --edge:rgba(255,255,255,.5);
+  --lift:rgba(255,255,255,.82);
+  --fill:rgba(24,24,27,.38);
+  --on-fill:#fff;
+  --ease:cubic-bezier(.2,.8,.2,1);
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --ink:rgba(255,255,255,.94);
+    --soft:rgba(255,255,255,.6);
+    --done:rgba(255,255,255,.42);
+    --line:rgba(255,255,255,.14);
+    --wash:rgba(255,255,255,.075);
+    --tint:rgba(22,22,24,var(--ta,.24));
+    --edge:rgba(255,255,255,.16);
+    --lift:rgba(66,66,70,.94);
+    --fill:rgba(255,255,255,.4);
+    --on-fill:rgba(22,22,24,.92);
+  }
+}
+*{box-sizing:border-box;margin:0}
+html,body{background:transparent;overflow:hidden}
+body{
+  font:13px/18px -apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue","Noto Sans CJK SC",sans-serif;
+  color:var(--ink);
+  -webkit-font-smoothing:antialiased;
+  -webkit-user-select:none;user-select:none;
+  cursor:default;
+}
+button{appearance:none;-webkit-appearance:none;background:none;border:0;padding:0;font:inherit;color:inherit;cursor:default}
+button:focus{outline:none}
+button:focus-visible{outline:1.5px solid var(--soft);outline-offset:1px;border-radius:6px}
+svg{display:block;fill:none;stroke:currentColor;stroke-linecap:round;stroke-linejoin:round}
+
+#app{position:relative;width:100%;overflow:hidden;border-radius:14px}
+#glass{position:fixed;top:0;right:0;bottom:0;left:0;z-index:-1;border-radius:14px;background:var(--tint);box-shadow:inset 0 0 0 .5px var(--edge);pointer-events:none}
+
+.head{display:flex;align-items:center;justify-content:space-between;height:32px;padding:4px 6px 0 14px}
+.date{font-size:12px;font-weight:500;color:var(--soft)}
+.chev{flex:none;width:24px;height:24px;display:flex;align-items:center;justify-content:center;color:var(--soft);border-radius:6px}
+.chev svg{width:16px;height:16px;stroke-width:1.4}
+.chev.hot{color:var(--ink);background:var(--wash)}
+.tools{display:flex;align-items:center;gap:1px}
+#gear{opacity:0}
+#gear svg{stroke-width:1.15}
+#app.hovering #gear{opacity:1}
+#gear:focus-visible{opacity:1}
+
+.list{position:relative;max-height:440px;overflow-y:auto;overscroll-behavior:contain;padding:0 6px 6px}
+.list:empty{padding:0}
+.list::-webkit-scrollbar{width:0;height:0;display:none}
+.list.more-down{-webkit-mask-image:linear-gradient(#000 calc(100% - 20px),transparent);mask-image:linear-gradient(#000 calc(100% - 20px),transparent)}
+.list.more-up{-webkit-mask-image:linear-gradient(transparent,#000 20px);mask-image:linear-gradient(transparent,#000 20px)}
+.list.more-up.more-down{-webkit-mask-image:linear-gradient(transparent,#000 20px,#000 calc(100% - 20px),transparent);mask-image:linear-gradient(transparent,#000 20px,#000 calc(100% - 20px),transparent)}
+
+.row{position:relative;display:flex;align-items:flex-start;padding:6px 6px 6px 8px;border-radius:8px}
+.row.hover{background:var(--wash)}
+.check{position:relative;flex:none;width:16px;height:18px;margin-right:9px;display:flex;align-items:center;justify-content:center}
+.check::before{content:"";position:absolute;top:-6px;right:-5px;bottom:-6px;left:-8px}
+.dot{display:block;width:16px;height:16px;border-radius:50%;box-shadow:inset 0 0 0 1.2px var(--soft)}
+.dot svg{width:16px;height:16px;stroke:var(--on-fill);stroke-width:1.6;stroke-dasharray:11;stroke-dashoffset:11}
+.check.hot .dot{box-shadow:inset 0 0 0 1.2px var(--ink)}
+.check.hot .dot svg{stroke:var(--soft);stroke-dashoffset:0}
+.body{flex:1;min-width:0;padding-right:36px;word-break:break-word;overflow-wrap:anywhere}
+.text{background:linear-gradient(currentColor,currentColor) no-repeat 0 54%/0 1px}
+.del{position:absolute;top:5px;right:3px;width:20px;height:20px;display:flex;align-items:center;justify-content:center;color:var(--soft);border-radius:6px;opacity:0}
+.del svg{width:14px;height:14px;stroke-width:1.3}
+.row.hover .del{opacity:1}
+.del:focus-visible{opacity:1}
+.del.hot{color:var(--ink)}
+.rep-btn{position:absolute;top:5px;right:23px;width:20px;height:20px;display:flex;align-items:center;justify-content:center;color:var(--soft);border-radius:6px;opacity:0}
+.rep-btn svg{width:14px;height:14px;stroke-width:1.2}
+.row.hover .rep-btn{opacity:1}
+.row.picking .rep-btn{opacity:1;color:var(--ink)}
+.rep-btn:focus-visible{opacity:1}
+.rep-btn.hot{color:var(--ink)}
+.done .rep-btn{display:none}
+.rep-tag{display:none;margin-left:6px;font-size:11px;color:var(--soft);white-space:nowrap}
+.row.repeats .rep-tag{display:inline}
+.picker{display:none;flex-wrap:wrap;gap:4px;margin:6px -30px 2px 0}
+.row.picking{background:var(--wash)}
+.row.picking .picker{display:flex}
+.picker .break{flex-basis:100%;height:0}
+.chip{display:inline-flex;align-items:center;justify-content:center;height:22px;min-width:22px;padding:0 7px;line-height:1;font-size:12px;color:var(--soft);background:var(--wash);border-radius:6px}
+.chip.hot{color:var(--ink)}
+.chip[aria-pressed=true]{color:var(--ink);box-shadow:inset 0 0 0 1px var(--soft)}
+
+/* 完成的瞬间：字变灰，一条线从头划到尾 */
+.done .dot{background:var(--fill);box-shadow:none;transition:background .18s ease}
+.done .dot svg,.done .check.hot .dot svg{stroke:var(--on-fill);stroke-dashoffset:0;transition:stroke-dashoffset .24s .04s var(--ease)}
+.done .check.hot .dot{box-shadow:none}
+.done .text{color:var(--done);background-size:100% 1px;transition:background-size .36s cubic-bezier(.4,0,.2,1),color .3s ease .08s}
+
+.row.editing{background:var(--wash)}
+.row.editing .text{display:none}
+.row.editing .del,.row.editing .rep-btn,.row.editing .rep-tag{display:none}
+.row.editing .body{padding-right:0}
+.edit{display:block;width:100%;padding:0;border:0;outline:0;resize:none;overflow:hidden;background:none;font:inherit;color:var(--ink);word-break:break-word;overflow-wrap:anywhere;-webkit-user-select:text;user-select:text;cursor:text}
+
+.reordering,.reordering *{cursor:grabbing}
+.reordering .row:not(.lifted){transition:transform .16s var(--ease)}
+.row.lifted{z-index:3;background:var(--lift);box-shadow:0 6px 18px rgba(0,0,0,.16),0 0 0 .5px var(--line)}
+
+.foot{position:relative;border-top:.5px solid var(--line)}
+#app.add-hidden .foot{display:none}
+.add{display:flex;align-items:center;height:38px;padding:0 14px;cursor:text}
+.plus{flex:none;width:16px;height:16px;margin-right:9px;color:var(--soft);stroke-width:1.3}
+.add:focus-within .plus{color:var(--ink)}
+#input{flex:1;min-width:0;padding:0;border:0;outline:0;background:none;font:inherit;color:var(--ink);-webkit-user-select:text;user-select:text;cursor:text}
+#input::placeholder{color:var(--soft);opacity:1}
+.undo{position:absolute;top:0;right:0;bottom:0;left:0;display:none;align-items:center;justify-content:space-between;padding:0 14px;color:var(--soft)}
+.foot.undoing .add{visibility:hidden}
+.foot.undoing .undo{display:flex}
+#undoBtn{display:inline-flex;align-items:center;justify-content:center;height:24px;padding:0 6px;margin-right:-6px;line-height:1;font-weight:500;color:var(--ink);border-radius:6px}
+#undoBtn.hot{background:var(--wash)}
+
+.pill{display:none;align-items:center;height:38px;padding:0 7px 0 14px}
+.pill .row{flex:1;min-width:0;align-items:center;padding:0;background:none}
+.pill .body{padding-right:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pill .row.empty .check{display:none}
+.pill .row.empty .text{color:var(--soft)}
+.pill .row.swap{animation:swap .22s var(--ease)}
+.count{flex:none;margin-right:1px;font-size:12px;color:var(--soft);font-variant-numeric:tabular-nums}
+#app.collapsed .head,#app.collapsed .list,#app.collapsed .foot{display:none}
+#app.collapsed .pill{display:flex}
+@keyframes swap{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+
+.grip{position:absolute;top:8px;bottom:8px;width:7px;z-index:4;cursor:ew-resize}
+.grip.l{left:0}
+.grip.r{right:0}
+.grip::after{content:"";position:absolute;top:50%;left:2.5px;width:2px;height:22px;margin-top:-11px;border-radius:1px;background:var(--soft);opacity:0;transition:opacity .12s ease}
+.grip.hot::after{opacity:1}
+.grip.b{top:auto;right:14px;bottom:0;left:14px;width:auto;height:6px;cursor:ns-resize}
+.grip.b::after{top:2px;left:50%;width:22px;height:2px;margin:0 0 0 -11px}
+.grip.bl{top:auto;bottom:0;left:0;width:14px;height:14px;cursor:nesw-resize}
+.grip.br{top:auto;right:0;bottom:0;width:14px;height:14px;cursor:nwse-resize}
+.grip.bl::after,.grip.br::after{display:none}
+#app.collapsed .grip.b,#app.collapsed .grip.bl,#app.collapsed .grip.br{display:none}
+
+/* 拉过下边缘之后：窗口高度固定，列表在里面滚动 */
+html.locked,html.locked body{height:100%}
+html.locked #app:not(.collapsed){display:flex;flex-direction:column;height:100vh}
+html.locked #app:not(.collapsed) .head,html.locked #app:not(.collapsed) .foot{flex:none}
+html.locked #app:not(.collapsed) .list{flex:1;min-height:0;max-height:none}
+
+.no-anim,.no-anim *{transition:none!important;animation:none!important}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+/* 只在浏览器里单独打开时生效：模拟桌面和磨砂，方便预览 */
+html:not(.native) body{min-height:100vh;padding:40px;background:linear-gradient(135deg,#6d8ca6,#c9a98c 58%,#5e7f6b)}
+html:not(.native) #app{width:280px;-webkit-backdrop-filter:blur(30px) saturate(1.7);backdrop-filter:blur(30px) saturate(1.7);background:rgba(246,246,248,.5);box-shadow:0 10px 34px rgba(0,0,0,.24)}
+html:not(.native) #glass{position:absolute}
+@media (prefers-color-scheme:dark){html:not(.native) #app{background:rgba(40,40,44,.55)}}
+</style>
+</head>
+<body>
+<main id="app" class="no-anim add-hidden" aria-label="待办">
+  <div id="glass" aria-hidden="true"></div>
+  <header class="head">
+    <time id="date" class="date"></time>
+    <span class="tools">
+      <button id="gear" class="chev" type="button"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6.73 3.27L7.01 1.78L8.99 1.78L9.27 3.27L10.45 3.76L11.70 2.90L13.10 4.30L12.24 5.55L12.73 6.73L14.22 7.01L14.22 8.99L12.73 9.27L12.24 10.45L13.10 11.70L11.70 13.10L10.45 12.24L9.27 12.73L8.99 14.22L7.01 14.22L6.73 12.73L5.55 12.24L4.30 13.10L2.90 11.70L3.76 10.45L3.27 9.27L1.78 8.99L1.78 7.01L3.27 6.73L3.76 5.55L2.90 4.30L4.30 2.90L5.55 3.76Z"/><circle cx="8" cy="8" r="2"/></svg></button>
+      <button id="collapse" class="chev" type="button"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 10l4-4 4 4"/></svg></button>
+    </span>
+  </header>
+  <div id="list" class="list"></div>
+  <footer id="foot" class="foot">
+    <label class="add">
+      <svg class="plus" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3.5v9M3.5 8h9"/></svg>
+      <input id="input" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+    </label>
+    <div id="undo" class="undo" role="status"><span id="undoText"></span><button id="undoBtn" type="button"></button></div>
+  </footer>
+  <div id="pill" class="pill">
+    <div id="pillRow" class="row">
+      <button id="pillCheck" class="check" type="button" role="checkbox" aria-checked="false"><span class="dot"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.4 8.3 7 10.8l4.7-5.4"/></svg></span></button>
+      <div class="body"><span id="pillText" class="text"></span></div>
+    </div>
+    <span id="pillCount" class="count"></span>
+    <button id="expand" class="chev" type="button"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6l4 4 4-4"/></svg></button>
+  </div>
+  <div class="grip l" data-edge="left" aria-hidden="true"></div>
+  <div class="grip r" data-edge="right" aria-hidden="true"></div>
+  <div class="grip b" data-edge="bottom" aria-hidden="true"></div>
+  <div class="grip bl" data-edge="bottom-left" aria-hidden="true"></div>
+  <div class="grip br" data-edge="bottom-right" aria-hidden="true"></div>
+</main>
+
+<template id="rowTpl">
+  <div class="row">
+    <button class="check" type="button" role="checkbox" aria-checked="false"><span class="dot"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.4 8.3 7 10.8l4.7-5.4"/></svg></span></button>
+    <div class="body"><span class="text"></span><span class="rep-tag"></span><div class="picker"></div></div>
+    <button class="rep-btn" type="button"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M12.6 6.4A5 5 0 0 0 3.7 5M3.4 2.6V5.2H6M3.4 9.6A5 5 0 0 0 12.3 11M12.6 13.4V10.8H10"/></svg></button>
+    <button class="del" type="button"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/></svg></button>
+  </div>
+</template>
+
+<script>
+(function () {
+  'use strict';
+
+  const DAY_START_HOUR = 4;    // 凌晨 4 点才算“第二天”，熬夜时做完的任务不会马上消失
+  const SINK_DELAY = 640;      // 划线之后停一下，再沉到底部
+  const UNDO_MS = 5000;
+  const STORE_KEY = 'floattodo';
+  const EASE = 'cubic-bezier(.2,.8,.2,1)';
+  const CN_WEEK = '日一二三四五六';
+  const EN_DAY = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const EN_DAYS = ['Sundays', 'Mondays', 'Tuesdays', 'Wednesdays', 'Thursdays', 'Fridays', 'Saturdays'];
+  const EN_MONTH = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const I18N = {
+    zh: {
+      htmlLang: 'zh-CN', app: '待办', add: '添加任务', deleted: '已删除', undo: '撤销',
+      collapse: '收起', expand: '展开', settings: '设置', edit: '修改任务',
+      allDone: '全部完成', empty: '没有待办',
+      complete: '完成：', uncomplete: '标记为未完成：', del: '删除：', repeat: '设置重复：',
+      once: '不重复', daily: '每天', weekly: '每周',
+      chips: ['一', '二', '三', '四', '五', '六', '日'],
+      everyDay: (dow) => '每周' + CN_WEEK[dow],
+      date: (d) => (d.getMonth() + 1) + '月' + d.getDate() + '日 周' + CN_WEEK[d.getDay()],
+      next: (m, day) => '下次 ' + m + '月' + day + '日',
+    },
+    en: {
+      htmlLang: 'en', app: 'To-do', add: 'Add a task', deleted: 'Deleted', undo: 'Undo',
+      collapse: 'Collapse', expand: 'Expand', settings: 'Settings', edit: 'Edit task',
+      allDone: 'All done', empty: 'Nothing to do',
+      complete: 'Complete: ', uncomplete: 'Mark as not done: ', del: 'Delete: ', repeat: 'Repeat: ',
+      once: 'No repeat', daily: 'Daily', weekly: 'Weekly',
+      chips: ['M', 'T', 'W', 'T', 'F', 'S', 'S'],
+      everyDay: (dow) => EN_DAYS[dow],
+      date: (d) => EN_DAY[d.getDay()] + ', ' + EN_MONTH[d.getMonth()] + ' ' + d.getDate(),
+      next: (m, day) => 'Next ' + EN_MONTH[m - 1] + ' ' + day,
+    },
+  };
+  let L = I18N.zh;
+
+  const $ = (s) => document.querySelector(s);
+  const app = $('#app'), list = $('#list'), input = $('#input'), dateEl = $('#date');
+  const foot = $('#foot'), pillRow = $('#pillRow'), pillCheck = $('#pillCheck');
+  const pillText = $('#pillText'), pillCount = $('#pillCount'), tpl = $('#rowTpl');
+
+  const handlers = window.webkit && window.webkit.messageHandlers;
+  const bridge = handlers && handlers.bridge;
+  const post = (message) => { if (bridge) { try { bridge.postMessage(message); } catch (_) {} } };
+  document.documentElement.classList.toggle('native', !!bridge);
+
+  let state = { version: 2, collapsed: false, tasks: [], asleep: [] };
+  const rowEls = new Map();
+  const sinkTimers = new Map();
+  let editing = null;
+  let lastDeleted = null, undoTimer = 0;
+  let pendingFocus = null;
+  let press = null, windowPress = null, drag = null, settling = false;
+  let pillHold = false;
+  let pickerRow = null;
+  let pointerInside = false, pressing = false, addVisible = false, addTimer = 0;
+  let lockedHeight = 0;
+  let hoverRow = null, hotBtn = null;
+  let lastHeight = 0, loaded = false;
+
+  const motionOff = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const find = (id) => state.tasks.find((t) => t.id === id);
+  const take = (t) => { const i = state.tasks.indexOf(t); if (i >= 0) state.tasks.splice(i, 1); };
+  const isField = (el) => !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA');
+  const clean = (s) => String(s == null ? '' : s).replace(/\s+/g, ' ').trim();
+  const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+
+  function logicalDay(ms) {
+    const d = new Date(ms - DAY_START_HOUR * 3600000);
+    d.setHours(12, 0, 0, 0);
+    return d;
+  }
+  const keyOf = (d) => d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
+  const dayKey = (ms) => keyOf(logicalDay(ms));
+
+  // 重复任务下一次该出现的那天
+  function nextDue(t) {
+    const d = logicalDay(t.doneAt || Date.now());
+    do { d.setDate(d.getDate() + 1); } while (t.repeat.every === 'week' && d.getDay() !== t.repeat.dow);
+    return keyOf(d);
+  }
+
+  const repeatLabel = (t) => (t.repeat.every === 'day' ? L.daily : L.everyDay(t.repeat.dow));
+
+  function save() {
+    const json = JSON.stringify(state);
+    if (bridge) post({ type: 'save', json });
+    else { try { localStorage.setItem(STORE_KEY, json); } catch (_) {} }
+  }
+
+  // 下一个新任务应该插入的位置：所有未完成任务（以及正在等待下沉的任务）之后
+  function activeEnd() {
+    let end = 0;
+    state.tasks.forEach((t, i) => { if (!t.done || sinkTimers.has(t.id)) end = i + 1; });
+    return end;
+  }
+
+  /* ---------- 画列表 ---------- */
+
+  function paint(el, t) {
+    el.classList.toggle('done', !!t.done);
+    const text = el.querySelector('.text');
+    if (text.textContent !== t.text) text.textContent = t.text;
+    const check = el.querySelector('.check');
+    check.setAttribute('aria-checked', t.done ? 'true' : 'false');
+    check.setAttribute('aria-label', (t.done ? L.uncomplete : L.complete) + t.text);
+    el.querySelector('.del').setAttribute('aria-label', L.del + t.text);
+    el.querySelector('.rep-btn').setAttribute('aria-label', L.repeat + t.text);
+    el.classList.toggle('repeats', !!t.repeat);
+    el.querySelector('.rep-tag').textContent = t.repeat ? repeatLabel(t) : '';
+  }
+
+  function rowFor(t) {
+    let el = rowEls.get(t.id);
+    if (!el) {
+      el = tpl.content.firstElementChild.cloneNode(true);
+      el.dataset.id = t.id;
+      rowEls.set(t.id, el);
+    }
+    paint(el, t);
+    return el;
+  }
+
+  function sync() {
+    let cursor = list.firstElementChild;
+    for (const t of state.tasks) {
+      const el = rowFor(t);
+      if (el === cursor) cursor = cursor.nextElementSibling;
+      else list.insertBefore(el, cursor);
+    }
+    while (cursor) {
+      const next = cursor.nextElementSibling;
+      rowEls.delete(cursor.dataset.id);
+      if (hoverRow === cursor) hoverRow = null;
+      if (pickerRow === cursor) pickerRow = null;
+      cursor.remove();
+      cursor = next;
+    }
+    renderPill();
+    updateFades();
+  }
+
+  // 先记下每一行的位置，改完再从旧位置滑到新位置
+  function flip(change) {
+    if (motionOff() || state.collapsed) { change(); return; }
+    const before = new Map();
+    for (const el of list.children) before.set(el, el.getBoundingClientRect().top);
+    change();
+    for (const el of list.children) {
+      const top = before.get(el), now = el.getBoundingClientRect().top;
+      if (top == null) {
+        el.animate([{ opacity: 0, transform: 'translateY(-4px)' }, { opacity: 1, transform: 'none' }], { duration: 180, easing: EASE });
+      } else if (Math.abs(top - now) > 0.5) {
+        el.animate([{ transform: 'translateY(' + (top - now) + 'px)' }, { transform: 'none' }], { duration: 280, easing: EASE });
+      }
+    }
+  }
+
+  function updateFades() {
+    const up = list.scrollTop > 1;
+    const down = list.scrollTop + list.clientHeight < list.scrollHeight - 1;
+    list.classList.toggle('more-up', up);
+    list.classList.toggle('more-down', down);
+  }
+
+  function reveal(el) {
+    const r = el.getBoundingClientRect(), l = list.getBoundingClientRect();
+    if (r.bottom > l.bottom) list.scrollTop += r.bottom - l.bottom + 6;
+    else if (r.top < l.top) list.scrollTop -= l.top - r.top + 6;
+    updateFades();
+  }
+
+  function paintDate() {
+    dateEl.textContent = L.date(new Date());
+  }
+
+  /* ---------- 任务操作 ---------- */
+
+  function addTask(raw) {
+    const text = clean(raw);
+    if (!text) return null;
+    const t = { id: newId(), text, done: false, doneAt: null, createdAt: Date.now() };
+    flip(() => { state.tasks.splice(activeEnd(), 0, t); sync(); });
+    save();
+    reveal(rowEls.get(t.id));
+    return t;
+  }
+
+  function toggle(id) {
+    const t = find(id);
+    if (!t) return;
+    if (!t.done) {
+      t.done = true;
+      t.doneAt = Date.now();
+      paint(rowEls.get(id), t);
+      save();
+      sinkTimers.set(id, setTimeout(() => sink(id), SINK_DELAY));
+      renderPill();
+    } else if (sinkTimers.has(id)) {
+      // 还没沉下去就反悔了：留在原地
+      clearTimeout(sinkTimers.get(id));
+      sinkTimers.delete(id);
+      t.done = false;
+      t.doneAt = null;
+      paint(rowEls.get(id), t);
+      save();
+      renderPill();
+    } else {
+      t.done = false;
+      t.doneAt = null;
+      flip(() => { take(t); state.tasks.splice(activeEnd(), 0, t); sync(); });
+      save();
+    }
+  }
+
+  function sink(id) {
+    sinkTimers.delete(id);
+    const t = find(id);
+    if (!t || !t.done) return;
+    flip(() => { take(t); state.tasks.push(t); sync(); });
+    save();
+  }
+
+  function flushSinks() {
+    if (!sinkTimers.size) return;
+    const ids = Array.from(sinkTimers.keys());
+    ids.forEach((id) => clearTimeout(sinkTimers.get(id)));
+    sinkTimers.clear();
+    const moved = ids.map(find).filter(Boolean);
+    moved.forEach(take);
+    state.tasks.push.apply(state.tasks, moved);
+    sync();
+    save();
+  }
+
+  function removeTask(id) {
+    const t = find(id);
+    if (!t) return;
+    if (sinkTimers.has(id)) { clearTimeout(sinkTimers.get(id)); sinkTimers.delete(id); }
+    const index = state.tasks.indexOf(t);
+    flip(() => { take(t); sync(); });
+    save();
+    lastDeleted = { task: t, index };
+    foot.classList.add('undoing');
+    setAddVisible(true);
+    clearTimeout(undoTimer);
+    undoTimer = setTimeout(hideUndo, UNDO_MS);
+  }
+
+  function hideUndo() {
+    clearTimeout(undoTimer);
+    foot.classList.remove('undoing');
+    lastDeleted = null;
+    scheduleAddRow();
+  }
+
+  function undoDelete() {
+    if (!lastDeleted) return false;
+    const { task, index } = lastDeleted;
+    hideUndo();
+    const end = activeEnd();
+    const at = task.done ? Math.max(index, end) : Math.min(index, end);
+    flip(() => { state.tasks.splice(Math.min(at, state.tasks.length), 0, task); sync(); });
+    save();
+    return true;
+  }
+
+  // 做完的任务只留到当天结束；重复任务收起来，到下一次该做的那天再出现
+  function purge() {
+    const today = dayKey(Date.now());
+    const expired = state.tasks.filter((t) => t.done && !sinkTimers.has(t.id) && dayKey(t.doneAt || 0) < today);
+    const waking = state.asleep.filter((t) => t.wakeOn <= today);
+    if (!expired.length && !waking.length) return;
+    flip(() => {
+      const back = [];
+      expired.forEach((t) => {
+        take(t);
+        if (!t.repeat) return;
+        const due = nextDue(t);
+        if (due <= today) back.push(t);
+        else { t.wakeOn = due; state.asleep.push(t); }
+      });
+      waking.forEach((t) => {
+        state.asleep.splice(state.asleep.indexOf(t), 1);
+        delete t.wakeOn;
+        back.push(t);
+      });
+      back.forEach((t) => {
+        t.done = false;
+        t.doneAt = null;
+        state.tasks.splice(activeEnd(), 0, t);
+      });
+      sync();
+    });
+    save();
+  }
+
+  /* ---------- 设置重复 ---------- */
+
+  function renderPicker(row) {
+    const t = find(row.dataset.id), box = row.querySelector('.picker');
+    if (!t) return;
+    const every = t.repeat ? t.repeat.every : 'none';
+    box.textContent = '';
+    const chip = (label, data, on, aria) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'chip';
+      b.textContent = label;
+      Object.assign(b.dataset, data);
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+      if (aria) b.setAttribute('aria-label', aria);
+      box.appendChild(b);
+    };
+    chip(L.once, { every: 'none' }, every === 'none');
+    chip(L.daily, { every: 'day' }, every === 'day');
+    chip(L.weekly, { every: 'week' }, every === 'week');
+    if (every === 'week') {
+      const br = document.createElement('span');
+      br.className = 'break';
+      box.appendChild(br);
+      [1, 2, 3, 4, 5, 6, 0].forEach((dow, i) => chip(L.chips[i], { dow: String(dow) }, t.repeat.dow === dow, L.everyDay(dow)));
+    }
+  }
+
+  function closePicker() {
+    if (!pickerRow) return;
+    pickerRow.classList.remove('picking');
+    pickerRow = null;
+    updateFades();
+  }
+
+  function togglePicker(row) {
+    const wasOpen = pickerRow === row;
+    closePicker();
+    if (wasOpen) return;
+    pickerRow = row;
+    renderPicker(row);
+    row.classList.add('picking');
+    reveal(row);
+  }
+
+  function pickRepeat(row, chip) {
+    const t = find(row.dataset.id);
+    if (!t) return;
+    const { every, dow } = chip.dataset;
+    if (dow != null) t.repeat = { every: 'week', dow: Number(dow) };
+    else if (every === 'none') delete t.repeat;
+    else if (every === 'day') t.repeat = { every: 'day' };
+    else t.repeat = { every: 'week', dow: t.repeat && t.repeat.every === 'week' ? t.repeat.dow : logicalDay(Date.now()).getDay() };
+    paint(row, t);
+    save();
+    if (every === 'week' || dow != null) renderPicker(row);
+    else closePicker();
+  }
+
+  function tick() { paintDate(); purge(); }
+
+  /* ---------- 改文字 ---------- */
+
+  function autosize(ta) {
+    ta.style.height = 'auto';
+    ta.style.height = ta.scrollHeight + 'px';
+  }
+
+  function startEdit(id, x, y) {
+    const t = find(id);
+    if (!t || t.done) return;
+    if (editing) commitEdit();
+    const row = rowEls.get(id);
+    if (!row) return;
+    const text = row.querySelector('.text');
+    let caret = t.text.length;
+    if (x != null && document.caretRangeFromPoint) {
+      const r = document.caretRangeFromPoint(x, y);
+      if (r && text.contains(r.startContainer)) caret = r.startOffset;
+    }
+    const ta = document.createElement('textarea');
+    ta.className = 'edit';
+    ta.rows = 1;
+    ta.value = t.text;
+    ta.spellcheck = false;
+    ta.setAttribute('aria-label', L.edit);
+    row.classList.add('editing');
+    row.querySelector('.body').appendChild(ta);
+    autosize(ta);
+    editing = { id, ta };
+    ta.addEventListener('input', () => autosize(ta));
+    ta.addEventListener('keydown', onEditKey);
+    ta.addEventListener('blur', commitEdit);
+    ta.focus({ preventScroll: true });
+    ta.setSelectionRange(caret, caret);
+    requestKey(ta);
+  }
+
+  function closeEdit() {
+    const current = editing;
+    editing = null;
+    const row = rowEls.get(current.id);
+    current.ta.removeEventListener('blur', commitEdit);
+    current.ta.remove();
+    if (row) row.classList.remove('editing');
+    releaseSoon();
+    return current;
+  }
+
+  function commitEdit() {
+    if (!editing) return;
+    const current = closeEdit();
+    const value = clean(current.ta.value);
+    const t = find(current.id);
+    if (!t) return;
+    if (!value) { removeTask(t.id); return; }
+    if (value !== t.text) {
+      t.text = value;
+      paint(rowEls.get(t.id), t);
+      save();
+      renderPill();
+    }
+  }
+
+  function cancelEdit() { if (editing) closeEdit(); }
+
+  // 中文输入法选字时按的回车不算提交（WebKit 里那一下的 keyCode 是 229）
+  const composing = (e) => e.isComposing || e.keyCode === 229;
+
+  function onEditKey(e) {
+    if (composing(e)) return;
+    if (e.key === 'Enter') { e.preventDefault(); commitEdit(); }
+    else if (e.key === 'Escape') { e.preventDefault(); cancelEdit(); }
+  }
+
+  /* ---------- 键盘焦点：只有打字时才向系统要 ---------- */
+
+  function requestKey(el) {
+    pendingFocus = el || null;
+    post({ type: 'wantKey' });
+  }
+
+  function releaseSoon() {
+    setTimeout(() => { if (!isField(document.activeElement)) post({ type: 'releaseKey' }); }, 0);
+  }
+
+  /* ---------- 收起成小条 ---------- */
+
+  function renderPill() {
+    if (pillHold) return;
+    const left = state.tasks.filter((t) => !t.done);
+    const next = left[0];
+    pillRow.classList.remove('done');
+    pillRow.classList.toggle('empty', !next);
+    pillRow.dataset.id = next ? next.id : '';
+    pillCheck.setAttribute('aria-checked', 'false');
+    pillCheck.setAttribute('aria-label', next ? L.complete + next.text : '');
+    pillText.textContent = next ? next.text : (state.tasks.length ? L.allDone : L.empty);
+    pillCount.textContent = left.length ? String(left.length) : '';
+  }
+
+  function completeFromPill() {
+    const id = pillRow.dataset.id;
+    if (!id || pillHold) return;
+    pillHold = true;
+    pillRow.classList.add('done');
+    pillCheck.setAttribute('aria-checked', 'true');
+    toggle(id);
+    setTimeout(() => {
+      pillHold = false;
+      renderPill();
+      pillRow.classList.remove('swap');
+      void pillRow.offsetWidth;
+      pillRow.classList.add('swap');
+    }, SINK_DELAY);
+  }
+
+  function setCollapsed(on) {
+    if (editing) commitEdit();
+    closePicker();
+    flushSinks();
+    pillHold = false;
+    state.collapsed = !!on;
+    app.classList.toggle('collapsed', state.collapsed);
+    renderPill();
+    updateFades();
+    save();
+  }
+
+  /* ---------- 拖动排序 ---------- */
+
+  function beginDrag(e) {
+    const row = press.row, startY = press.y;
+    press = null;
+    closePicker();
+    flushSinks();
+    const rows = Array.from(list.children).filter((el) => { const t = find(el.dataset.id); return t && !t.done; });
+    const from = rows.indexOf(row);
+    if (from < 0) return;
+    const listTop = list.getBoundingClientRect().top;
+    const items = rows.map((el) => {
+      const r = el.getBoundingClientRect();
+      return { el, top: r.top - listTop + list.scrollTop, h: r.height };
+    });
+    drag = { row, items, from, to: from, startY, lastY: e.clientY, startScroll: list.scrollTop };
+    try { row.setPointerCapture(e.pointerId); } catch (_) {}
+    app.classList.add('reordering');
+    row.classList.add('lifted');
+    setHover(null);
+    applyDrag();
+    requestAnimationFrame(autoScroll);
+  }
+
+  function applyDrag() {
+    const d = drag, cur = d.items[d.from];
+    const first = d.items[0], last = d.items[d.items.length - 1];
+    let dy = d.lastY - d.startY + (list.scrollTop - d.startScroll);
+    dy = Math.max(first.top - cur.top - 3, Math.min(last.top + last.h - cur.top - cur.h + 3, dy));
+    d.row.style.transform = 'translateY(' + dy + 'px)';
+    // 选离手上这一行最近的空位（各行高度可以不同）
+    const center = cur.top + cur.h / 2 + dy;
+    let to = 0, best = Infinity, slotTop = first.top, k = 0;
+    d.items.forEach((it, i) => {
+      if (i === d.from) return;
+      const gap = Math.abs(slotTop + cur.h / 2 - center);
+      if (gap < best) { best = gap; to = k; }
+      slotTop += it.h;
+      k++;
+    });
+    if (Math.abs(slotTop + cur.h / 2 - center) < best) to = k;
+    d.items.forEach((it, i) => {
+      if (i === d.from) return;
+      let shift = 0;
+      if (i < d.from && i >= to) shift = cur.h;
+      else if (i > d.from && i <= to) shift = -cur.h;
+      it.el.style.transform = shift ? 'translateY(' + shift + 'px)' : '';
+    });
+    d.to = to;
+  }
+
+  function autoScroll() {
+    if (!drag) return;
+    const l = list.getBoundingClientRect();
+    const before = list.scrollTop;
+    if (drag.lastY < l.top + 24) list.scrollTop -= 5;
+    else if (drag.lastY > l.bottom - 24) list.scrollTop += 5;
+    if (list.scrollTop !== before) { applyDrag(); updateFades(); }
+    requestAnimationFrame(autoScroll);
+  }
+
+  function endDrag(cancelled) {
+    const d = drag;
+    drag = null;
+    const to = cancelled ? d.from : d.to;
+    const finish = () => {
+      settling = false;
+      app.classList.remove('reordering');
+      d.row.classList.remove('lifted');
+      d.row.style.transition = '';
+      d.items.forEach((it) => { it.el.style.transform = ''; });
+      if (to !== d.from) {
+        const active = state.tasks.filter((t) => !t.done);
+        const moved = active.splice(d.from, 1)[0];
+        active.splice(to, 0, moved);
+        state.tasks = active.concat(state.tasks.filter((t) => t.done));
+        sync();
+        save();
+      }
+    };
+    if (motionOff()) { finish(); return; }
+    // 松手时滑进空位，再真正换顺序
+    const cur = d.items[d.from];
+    let slot = 0;
+    d.items.forEach((it, i) => { if (i !== d.from && i < to + (i > d.from ? 1 : 0)) slot += it.h; });
+    settling = true;
+    d.row.style.transition = 'transform .16s ' + EASE;
+    d.row.style.transform = 'translateY(' + (d.items[0].top + slot - cur.top) + 'px)';
+    setTimeout(finish, 170);
+  }
+
+  /* ---------- 悬停（窗口没拿到键盘焦点时，由 Mac 外壳告诉我们鼠标位置） ---------- */
+
+  // 添加任务那一行：鼠标在小窗上才显示；正在输入、有草稿或正在撤销时也留着
+  const wantsAddRow = () => pointerInside || pressing || document.activeElement === input
+    || !!input.value || foot.classList.contains('undoing');
+
+  function setAddVisible(on) {
+    clearTimeout(addTimer);
+    if (on === addVisible) return;
+    addVisible = on;
+    app.classList.toggle('add-hidden', !on);
+    updateFades();
+  }
+
+  function scheduleAddRow() {
+    clearTimeout(addTimer);
+    const want = wantsAddRow();
+    if (want === addVisible) return;
+    addTimer = setTimeout(() => setAddVisible(wantsAddRow()), want ? 100 : 350);
+  }
+
+  function setPointerInside(on) {
+    if (on === pointerInside) return;
+    pointerInside = on;
+    scheduleAddRow();
+  }
+
+  function setHover(el) {
+    app.classList.toggle('hovering', !!el);
+    const row = el && el.closest ? el.closest('.row') : null;
+    if (row !== hoverRow) {
+      if (hoverRow) hoverRow.classList.remove('hover');
+      hoverRow = row;
+      if (row && !drag) row.classList.add('hover');
+    }
+    const btn = el && el.closest ? el.closest('button,.grip') : null;
+    if (btn !== hotBtn) {
+      if (hotBtn) hotBtn.classList.remove('hot');
+      hotBtn = btn;
+      if (btn) btn.classList.add('hot');
+    }
+  }
+
+  /* ---------- 事件 ---------- */
+
+  list.addEventListener('click', (e) => {
+    const row = e.target.closest('.row');
+    if (!row) return;
+    const chip = e.target.closest('.chip');
+    if (chip) { e.stopPropagation(); pickRepeat(row, chip); }   // 选项会被重新画，不能再冒泡到“点别处收起”
+    else if (e.target.closest('.check')) toggle(row.dataset.id);
+    else if (e.target.closest('.del')) removeTask(row.dataset.id);
+    else if (e.target.closest('.rep-btn')) togglePicker(row);
+  });
+  list.addEventListener('scroll', updateFades, { passive: true });
+
+  document.addEventListener('click', (e) => {
+    if (pickerRow && !e.target.closest('.picker') && !e.target.closest('.rep-btn')) closePicker();
+  });
+
+  $('#gear').addEventListener('click', () => post({ type: 'openSettings' }));
+  $('#collapse').addEventListener('click', () => setCollapsed(true));
+  $('#expand').addEventListener('click', () => setCollapsed(false));
+  pillCheck.addEventListener('click', completeFromPill);
+  $('#undoBtn').addEventListener('click', undoDelete);
+  $('#undo').addEventListener('pointerdown', (e) => { if (!e.target.closest('button')) hideUndo(); });
+
+  input.addEventListener('focus', () => { hideUndo(); requestKey(input); scheduleAddRow(); });
+  input.addEventListener('blur', () => { releaseSoon(); scheduleAddRow(); });
+  input.addEventListener('input', scheduleAddRow);
+  input.addEventListener('keydown', (e) => {
+    if (composing(e)) return;
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (addTask(input.value)) input.value = '';
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      if (input.value) input.value = '';
+      else input.blur();
+      scheduleAddRow();
+    }
+  });
+  // 一次贴进来好几行：每行一个任务
+  input.addEventListener('paste', (e) => {
+    const data = e.clipboardData && e.clipboardData.getData('text');
+    if (!data || !/[\r\n]/.test(data)) return;
+    e.preventDefault();
+    data.split(/\r?\n|\r/).map((line) => line.replace(/^\s*[-•*·]\s+/, '')).forEach(addTask);
+    input.value = '';
+  });
+
+  document.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0 || e.ctrlKey) return;   // control + 点击等于右键
+    pressing = true;
+    const t = e.target;
+    const grip = t.closest('.grip');
+    if (grip) { post({ type: 'resizeStart', edge: grip.dataset.edge }); return; }
+    if (t.closest('textarea')) return;
+    if (t.closest('.add')) { requestKey(input); return; }
+    if (isField(document.activeElement)) document.activeElement.blur();
+    if (t.closest('button') || t.closest('.undo') || t.closest('.picker')) return;
+    const row = t.closest('.row');
+    if (row && list.contains(row)) {
+      if (!settling) press = { row, id: row.dataset.id, x: e.clientX, y: e.clientY, onText: !!t.closest('.text') };
+      return;
+    }
+    // 其余地方都用来拖动窗口
+    windowPress = { x: e.screenX, y: e.screenY, pill: !!t.closest('.pill') };
+    post({ type: 'dragStart' });
+  });
+
+  document.addEventListener('pointermove', (e) => {
+    if (drag) { drag.lastY = e.clientY; applyDrag(); return; }
+    if (press && Math.hypot(e.clientX - press.x, e.clientY - press.y) >= 4) {
+      const t = find(press.id);
+      if (t && !t.done && !sinkTimers.has(t.id)) beginDrag(e);
+      else press = null;
+    }
+  });
+
+  document.addEventListener('pointerup', (e) => {
+    pressing = false;
+    scheduleAddRow();
+    if (drag) { endDrag(false); return; }
+    if (press) {
+      const p = press;
+      press = null;
+      if (p.onText) startEdit(p.id, e.clientX, e.clientY);
+      return;
+    }
+    if (windowPress) {
+      const w = windowPress;
+      windowPress = null;
+      if (w.pill && Math.hypot(e.screenX - w.x, e.screenY - w.y) < 3) setCollapsed(false);
+    }
+  });
+
+  document.addEventListener('pointercancel', () => {
+    pressing = false;
+    scheduleAddRow();
+    press = null;
+    windowPress = null;
+    if (drag) endDrag(true);
+  });
+
+  document.addEventListener('mousemove', (e) => { setPointerInside(true); setHover(e.target); });
+  document.addEventListener('mouseleave', () => { setPointerInside(false); setHover(null); });
+
+  document.addEventListener('keydown', (e) => {
+    if (isField(e.target)) return;
+    if (e.key === 'Escape' && pickerRow) closePicker();
+    if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === 'z') {
+      e.preventDefault();
+      undoDelete();
+      return;
+    }
+    if (e.key === 'Tab') return;
+    if ((e.key === ' ' || e.key === 'Enter') && e.target.closest && e.target.closest('button')) return;
+    e.preventDefault();   // 焦点不在输入框时乱按键，不要发出系统提示音
+  });
+
+  // 双击下边缘：恢复自动高度
+  document.addEventListener('dblclick', (e) => {
+    if (e.target.closest('.grip.b, .grip.bl, .grip.br')) post({ type: 'autoHeight' });
+  });
+
+  document.addEventListener('contextmenu', (e) => {
+    if (isField(e.target)) return;
+    e.preventDefault();
+    post({ type: 'menu' });
+  });
+
+  ['dragstart', 'dragover', 'drop'].forEach((name) => document.addEventListener(name, (e) => e.preventDefault()));
+  window.addEventListener('scroll', () => { if (window.scrollX || window.scrollY) window.scrollTo(0, 0); }, { passive: true });
+  app.addEventListener('scroll', () => { app.scrollTop = 0; }, { passive: true });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) tick(); });
+  setInterval(tick, 60000);
+
+  // 数据载入之后才报告高度，窗口出现时就是最终的样子
+  function reportHeight() {
+    if (!loaded) return;
+    const height = lockedHeight && !state.collapsed ? lockedHeight : Math.ceil(app.getBoundingClientRect().height);
+    if (height && height !== lastHeight) {
+      lastHeight = height;
+      post({ type: 'resize', height });
+    }
+  }
+  new ResizeObserver(reportHeight).observe(app);
+
+  /* ---------- 设置 ---------- */
+
+  function setLockedHeight(height) {
+    if (height === lockedHeight) return;
+    lockedHeight = height;
+    document.documentElement.classList.toggle('locked', height > 0);
+    updateFades();
+    reportHeight();
+  }
+
+  function applySettings(s) {
+    if (s && typeof s.ta === 'number') document.documentElement.style.setProperty('--ta', String(s.ta));
+    if (s && typeof s.lockedHeight === 'number') setLockedHeight(s.lockedHeight);
+    if (s && I18N[s.lang]) L = I18N[s.lang];
+    document.documentElement.lang = L.htmlLang;
+    app.setAttribute('aria-label', L.app);
+    input.placeholder = L.add;
+    input.setAttribute('aria-label', L.add);
+    $('#undoText').textContent = L.deleted;
+    $('#undoBtn').textContent = L.undo;
+    $('#gear').setAttribute('aria-label', L.settings);
+    $('#collapse').setAttribute('aria-label', L.collapse);
+    $('#expand').setAttribute('aria-label', L.expand);
+    paintDate();
+    for (const t of state.tasks) {
+      const el = rowEls.get(t.id);
+      if (el) paint(el, t);
+    }
+    if (pickerRow) renderPicker(pickerRow);
+    renderPill();
+  }
+
+  function repeats() {
+    return state.tasks.filter((t) => t.repeat).concat(state.asleep).map((t) => {
+      const month = t.wakeOn ? Math.floor(t.wakeOn / 100) % 100 : 0;
+      return { id: t.id, text: t.text, label: repeatLabel(t), note: t.wakeOn ? L.next(month, t.wakeOn % 100) : '' };
+    });
+  }
+
+  function stopRepeat(id) {
+    const sleeping = state.asleep.find((t) => t.id === id);
+    if (sleeping) {
+      state.asleep.splice(state.asleep.indexOf(sleeping), 1);
+    } else {
+      const t = find(id);
+      if (!t) return;
+      delete t.repeat;
+      const el = rowEls.get(id);
+      if (el) paint(el, t);
+      if (pickerRow === el) renderPicker(el);
+    }
+    save();
+  }
+
+  /* ---------- 启动 ---------- */
+
+  function load(data) {
+    const usable = (items) => (Array.isArray(items) ? items : []).filter((t) => t && typeof t.id === 'string' && clean(t.text));
+    const parse = (t) => {
+      const out = {
+        id: t.id,
+        text: clean(t.text),
+        done: !!t.done,
+        doneAt: t.done ? (Number(t.doneAt) || Date.now()) : null,
+        createdAt: Number(t.createdAt) || Date.now(),
+      };
+      if (t.repeat && t.repeat.every === 'day') out.repeat = { every: 'day' };
+      else if (t.repeat && t.repeat.every === 'week' && t.repeat.dow >= 0 && t.repeat.dow <= 6) out.repeat = { every: 'week', dow: Number(t.repeat.dow) };
+      return out;
+    };
+    const tasks = usable(data && data.tasks).map(parse);
+    const asleep = usable(data && data.asleep).map((t) => Object.assign(parse(t), { wakeOn: Number(t.wakeOn) || 0 })).filter((t) => t.repeat);
+    const active = tasks.filter((t) => !t.done);
+    const done = tasks.filter((t) => t.done).sort((a, b) => a.doneAt - b.doneAt);
+    state = { version: 2, collapsed: !!(data && data.collapsed), tasks: active.concat(done), asleep };
+    purge();
+    app.classList.toggle('collapsed', state.collapsed);
+    paintDate();
+    sync();
+    loaded = true;
+    reportHeight();
+    requestAnimationFrame(() => requestAnimationFrame(() => app.classList.remove('no-anim')));
+  }
+
+  window.FT = {
+    load,
+    tick,
+    applySettings,
+    repeats,
+    stopRepeat,
+    hoverAt(x, y) {
+      setPointerInside(true);
+      setHover(document.elementFromPoint(x, y));
+    },
+    hoverEnd() {
+      setPointerInside(false);
+      setHover(null);
+    },
+    onKey(isKey) {
+      if (isKey) {
+        const el = pendingFocus;
+        pendingFocus = null;
+        if (el && document.contains(el) && document.activeElement !== el) el.focus({ preventScroll: true });
+      } else {
+        pendingFocus = null;
+        if (isField(document.activeElement)) document.activeElement.blur();
+      }
+    },
+    onShown: tick,
+    nativeUndo() {
+      return isField(document.activeElement) ? false : undoDelete();
+    },
+    tasks: () => state.tasks,
+  };
+
+  applySettings(null);
+  if (bridge) {
+    post({ type: 'ready' });
+  } else {
+    let saved = null;
+    try { saved = JSON.parse(localStorage.getItem(STORE_KEY) || 'null'); } catch (_) {}
+    load(saved);
+  }
+})();
+</script>
+</body>
+</html>
